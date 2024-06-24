@@ -143,6 +143,7 @@ NEW_TESTS = \
 	test_file_perm \
 	test_file_size \
 	test_filechanged \
+	test_filecopy \
 	test_fileformat \
 	test_filetype \
 	test_filter_cmd \
@@ -160,6 +161,9 @@ NEW_TESTS = \
 	test_function_lists \
 	test_ga \
 	test_getcwd \
+	test_gettext \
+	test_gettext_cp1251 \
+	test_gettext_utf8 \
 	test_getvar \
 	test_gf \
 	test_glob2regpat \
@@ -278,6 +282,7 @@ NEW_TESTS = \
 	test_spell \
 	test_spell_utf8 \
 	test_spellfile \
+	test_spellrare \
 	test_startup \
 	test_startup_utf8 \
 	test_stat \
@@ -403,6 +408,7 @@ NEW_TESTS_RES = \
 	test_expr.res \
 	test_file_size.res \
 	test_filechanged.res \
+	test_filecopy.res \
 	test_fileformat.res \
 	test_filetype.res \
 	test_filter_cmd.res \
@@ -417,6 +423,9 @@ NEW_TESTS_RES = \
 	test_functions.res \
 	test_function_lists.res \
 	test_getcwd.res \
+	test_gettext.res \
+	test_gettext_cp1251.res \
+	test_gettext_utf8.res \
 	test_getvar.res \
 	test_gf.res \
 	test_gn.res \
@@ -521,6 +530,7 @@ NEW_TESTS_RES = \
 	test_spell.res \
 	test_spell_utf8.res \
 	test_spellfile.res \
+	test_spellrare.res \
 	test_startup.res \
 	test_stat.res \
 	test_statusline.res \
