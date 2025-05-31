@@ -3371,6 +3371,7 @@ struct file_buffer
      * local values for options which are normally global
      */
 #ifdef FEAT_QUICKFIX
+    char_u	*b_p_gefm;	// 'grepformat' local value
     char_u	*b_p_gp;	// 'grepprg' local value
     char_u	*b_p_mp;	// 'makeprg' local value
     char_u	*b_p_efm;	// 'errorformat' local value
@@ -3851,6 +3852,9 @@ typedef struct
     int	diff;
     int	eob;
     int	lastline;
+#if defined(FEAT_TABPANEL)
+    int	tpl_vert;
+#endif
     int trunc;
     int truncrl;
 } fill_chars_T;
@@ -4562,6 +4566,7 @@ typedef struct
     char_u	*pum_info;		// extra info
     int		pum_score;		// fuzzy match score
     int		pum_idx;		// index of item before sorting by score
+    int		pum_cpt_source_idx;	// index of completion source in 'cpt'
     int		pum_user_abbr_hlattr;	// highlight attribute for abbr
     int		pum_user_kind_hlattr;	// highlight attribute for kind
 } pumitem_T;
@@ -4579,9 +4584,9 @@ typedef struct
 } tagname_T;
 
 typedef struct {
-  UINT32_T total[2];
-  UINT32_T state[8];
-  char_u   buffer[64];
+    UINT32_T total[2];
+    UINT32_T state[8];
+    char_u   buffer[64];
 } context_sha256_T;
 
 /*
