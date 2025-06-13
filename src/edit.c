@@ -929,6 +929,8 @@ doESCkey:
 	    break;
 
 	case Ctrl_R:	// insert the contents of a register
+	    if (ctrl_x_mode_register() && !ins_compl_active())
+		goto docomplete;
 	    ins_reg();
 	    auto_format(FALSE, TRUE);
 	    inserted_space = FALSE;
@@ -2195,7 +2197,7 @@ insertchar(
 	    i -= middle_len;
 
 	    // Check some expected things before we go on
-	    if (i >= 0 && lead_end[end_len - 1] == end_comment_pending)
+	    if (i >= 0 && end_len > 0 && lead_end[end_len - 1] == end_comment_pending)
 	    {
 		// Backspace over all the stuff we want to replace
 		backspace_until_column(i);
