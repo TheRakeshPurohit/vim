@@ -1385,8 +1385,8 @@ win_split_ins(
 	// width and column of new window is same as current window
 	if (flags & (WSP_TOP | WSP_BOT))
 	{
-	    wp->w_wincol = 0;
-	    win_new_width(wp, Columns);
+	    wp->w_wincol = firstwin->w_wincol;
+	    win_new_width(wp, topframe->fr_width);
 	    wp->w_vsep_width = 0;
 	}
 	else
@@ -2085,8 +2085,8 @@ win_equal(
     if (dir == 0)
 	dir = *p_ead;
     win_equal_rec(next_curwin == NULL ? curwin : next_curwin, current,
-		      topframe, dir, 0, tabline_height(),
-					   (int)Columns, topframe->fr_height);
+		      topframe, dir, firstwin->w_wincol, tabline_height(),
+		      topframe->fr_width, topframe->fr_height);
     if (!is_aucmd_win(next_curwin))
 	win_fix_scroll(TRUE);
 }
@@ -2144,7 +2144,7 @@ win_equal_rec(
 	    // frame.
 	    n = frame_minwidth(topfr, NOWIN);
 	    // add one for the rightmost window, it doesn't have a separator
-	    if (col + width == Columns)
+	    if (col + width >= firstwin->w_wincol + topframe->fr_width)
 		extra_sep = 1;
 	    else
 		extra_sep = 0;
@@ -2619,6 +2619,10 @@ close_last_window_tabpage(
     // Since goto_tabpage_tp above did not trigger *Enter autocommands, do
     // that now.
     apply_autocmds(EVENT_TABCLOSED, NULL, NULL, FALSE, curbuf);
+#if defined(FEAT_TABPANEL)
+    if (p_stpl > 0)
+	shell_new_columns();
+#endif
     apply_autocmds(EVENT_WINENTER, NULL, NULL, FALSE, curbuf);
     apply_autocmds(EVENT_TABENTER, NULL, NULL, FALSE, curbuf);
     if (old_curbuf != curbuf)
@@ -3459,6 +3463,7 @@ win_close_othertab(win_T *win, int free_buf, tabpage_T *tp)
 	redraw_tabline = TRUE;
 	if (h != tabline_height())
 	    shell_new_rows();
+	shell_new_columns();
     }
 
     // Free the memory used for the window.
@@ -4558,7 +4563,7 @@ win_alloc_firstwin(win_T *oldwin)
     if (curwin->w_frame == NULL)
 	return FAIL;
     topframe = curwin->w_frame;
-    topframe->fr_width = Columns;
+    topframe->fr_width = COLUMNS_WITHOUT_TPL();
     topframe->fr_height = Rows - p_ch;
 
     return OK;
@@ -4588,8 +4593,7 @@ win_init_size(void)
     firstwin->w_height = ROWS_AVAIL;
     firstwin->w_prev_height = ROWS_AVAIL;
     topframe->fr_height = ROWS_AVAIL;
-    firstwin->w_width = Columns;
-    topframe->fr_width = Columns;
+    firstwin->w_width = topframe->fr_width;
 }
 
 /*
@@ -4688,6 +4692,9 @@ win_new_tabpage(int after)
     tabpage_T	*prev_tp = curtab;
     tabpage_T	*newtp;
     int		n;
+#if defined(FEAT_TABPANEL)
+    int prev_columns = COLUMNS_WITHOUT_TPL();
+#endif
 
     if (cmdwin_type != 0)
     {
@@ -4755,7 +4762,10 @@ win_new_tabpage(int after)
 #ifdef FEAT_JOB_CHANNEL
 	entering_window(curwin);
 #endif
-
+#if defined(FEAT_TABPANEL)
+	if (prev_columns != COLUMNS_WITHOUT_TPL())
+	    shell_new_columns();
+#endif
 	redraw_all_later(UPD_NOT_VALID);
 	apply_autocmds(EVENT_WINNEW, NULL, NULL, FALSE, curbuf);
 	apply_autocmds(EVENT_WINENTER, NULL, NULL, FALSE, curbuf);
@@ -4963,7 +4973,10 @@ leave_tabpage(
     tp->tp_lastwin = lastwin;
     tp->tp_old_Rows = Rows;
     if (tp->tp_old_Columns != -1)
-	tp->tp_old_Columns = Columns;
+    {
+	tp->tp_old_Columns = topframe->fr_width;
+	tp->tp_old_coloff = firstwin->w_wincol;
+    }
     firstwin = NULL;
     lastwin = NULL;
     return OK;
@@ -5026,12 +5039,14 @@ enter_tabpage(
 #endif
 		))
 	shell_new_rows();
-    if (curtab->tp_old_Columns != Columns)
+    if (curtab->tp_old_Columns != COLUMNS_WITHOUT_TPL()
+	    || curtab->tp_old_coloff != TPL_LCOL(NULL))
     {
 	if (starting == 0)
 	{
 	    shell_new_columns();	// update window widths
-	    curtab->tp_old_Columns = Columns;
+	    curtab->tp_old_Columns = topframe->fr_width;
+	    curtab->tp_old_coloff = firstwin->w_wincol;
 	}
 	else
 	    curtab->tp_old_Columns = -1;  // update window widths later
@@ -5244,6 +5259,9 @@ tabpage_move(int nr)
 
     // Need to redraw the tabline.  Tab page contents doesn't change.
     redraw_tabline = TRUE;
+#if defined(FEAT_TABPANEL)
+    redraw_tabpanel = TRUE;
+#endif
 }
 
 
@@ -5667,6 +5685,9 @@ win_enter_ext(win_T *wp, int flags)
 	redraw_mode = TRUE;
 #endif
     redraw_tabline = TRUE;
+#if defined(FEAT_TABPANEL)
+    redraw_tabpanel = TRUE;
+#endif
     if (restart_edit)
 	redraw_later(UPD_VALID);	// causes status line redraw
 
@@ -5791,8 +5812,8 @@ win_alloc(win_T *after, int hidden)
      */
     if (!hidden)
 	win_append(after, new_wp);
-    new_wp->w_wincol = 0;
-    new_wp->w_width = Columns;
+    new_wp->w_wincol = TPL_LCOL(NULL);
+    new_wp->w_width = COLUMNS_WITHOUT_TPL();
 
     // position the display and the cursor at the top of the file.
     new_wp->w_topline = 1;
@@ -6150,8 +6171,8 @@ shell_new_rows(void)
     if (h < frame_minheight(topframe, NULL))
 	h = frame_minheight(topframe, NULL);
 
-    // First try setting the heights of windows with 'winfixheight'.  If
-    // that doesn't result in the right height, forget about that option.
+    // First try setting the heights of windows with 'winfixheight'.  If that
+    // doesn't result in the right height, forget about that option.
     frame_new_height(topframe, h, FALSE, TRUE, FALSE);
     if (!frame_check_height(topframe, h))
 	frame_new_height(topframe, h, FALSE, FALSE, FALSE);
@@ -6163,6 +6184,10 @@ shell_new_rows(void)
     if (!skip_win_fix_scroll)
 	win_fix_scroll(TRUE);
 
+    redraw_tabline = TRUE;
+#if defined(FEAT_TABPANEL)
+    redraw_tabpanel = TRUE;
+#endif
 #if 0
     // Disabled: don't want making the screen smaller make a window larger.
     if (p_ea)
@@ -6179,13 +6204,23 @@ shell_new_columns(void)
     if (firstwin == NULL)	// not initialized yet
 	return;
 
+    int w = COLUMNS_WITHOUT_TPL();
+
     // First try setting the widths of windows with 'winfixwidth'.  If that
     // doesn't result in the right width, forget about that option.
-    frame_new_width(topframe, (int)Columns, FALSE, TRUE);
-    if (!frame_check_width(topframe, Columns))
-	frame_new_width(topframe, (int)Columns, FALSE, FALSE);
+    frame_new_width(topframe, w, FALSE, TRUE);
+    if (!frame_check_width(topframe, w))
+	frame_new_width(topframe, w, FALSE, FALSE);
 
     (void)win_comp_pos();		// recompute w_winrow and w_wincol
+
+    if (!skip_win_fix_scroll)
+	win_fix_scroll(TRUE);
+
+    redraw_tabline = TRUE;
+#if defined(FEAT_TABPANEL)
+    redraw_tabpanel = TRUE;
+#endif
 #if 0
     // Disabled: don't want making the screen smaller make a window larger.
     if (p_ea)
@@ -6255,7 +6290,7 @@ win_size_restore(garray_T *gap)
 win_comp_pos(void)
 {
     int		row = tabline_height();
-    int		col = 0;
+    int		col = TPL_LCOL(NULL);
 
     frame_comp_pos(topframe, &row, &col);
     return row;
@@ -6425,7 +6460,7 @@ frame_setheight(frame_T *curfrp, int height)
 		if (frp != curfrp)
 		    room -= frame_minheight(frp, NULL);
 	    }
-	    if (curfrp->fr_width != Columns)
+	    if (curfrp->fr_width != topframe->fr_width)
 		room_cmdline = 0;
 	    else
 	    {
@@ -6438,7 +6473,7 @@ frame_setheight(frame_T *curfrp, int height)
 
 	    if (height <= room + room_cmdline)
 		break;
-	    if (run == 2 || curfrp->fr_width == Columns)
+	    if (run == 2 || curfrp->fr_width == topframe->fr_width)
 	    {
 		height = room + room_cmdline;
 		break;
@@ -6743,7 +6778,7 @@ win_setminwidth(void)
     // loop until there is a 'winminheight' that is possible
     while (p_wmw > 0)
     {
-	room = Columns;
+	room = topframe->fr_width;
 	needed = frame_minwidth(topframe, NULL);
 	if (room >= needed)
 	    break;
@@ -7333,7 +7368,7 @@ command_height(void)
 
     // Find bottom frame with width of screen.
     frame_T *frp = lastwin->w_frame;
-    while (frp->fr_width != Columns && frp->fr_parent != NULL)
+    while (frp->fr_width != topframe->fr_width && frp->fr_parent != NULL)
 	frp = frp->fr_parent;
 
     // Avoid changing the height of a window with 'winfixheight' set.
@@ -7653,7 +7688,7 @@ reset_lnums(void)
 	    if (wp->w_save_cursor.w_topline_corr == wp->w_topline
 				  && wp->w_save_cursor.w_topline_save != 0)
 		wp->w_topline = wp->w_save_cursor.w_topline_save;
-	   if (wp->w_save_cursor.w_topline_save > wp->w_buffer->b_ml.ml_line_count)
+	    if (wp->w_save_cursor.w_topline_save > wp->w_buffer->b_ml.ml_line_count)
 		wp->w_valid &= ~VALID_TOPLINE;
 	}
 }

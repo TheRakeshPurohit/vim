@@ -3614,8 +3614,10 @@ win_new_shellsize(void)
 {
     static int	old_Rows = 0;
     static int	old_Columns = 0;
+    static int	old_coloff = 0;
 
-    if (old_Rows != Rows || old_Columns != Columns)
+    if (old_Rows != Rows || old_Columns != COLUMNS_WITHOUT_TPL()
+	    || old_coloff != TPL_LCOL(NULL))
 	ui_new_shellsize();
     if (old_Rows != Rows)
     {
@@ -3627,10 +3629,12 @@ win_new_shellsize(void)
 	old_Rows = Rows;
 	shell_new_rows();	// update window sizes
     }
-    if (old_Columns != Columns)
+    if (old_Columns != COLUMNS_WITHOUT_TPL() || old_coloff != TPL_LCOL(NULL))
     {
-	old_Columns = Columns;
-	shell_new_columns();	// update window sizes
+	old_Columns = COLUMNS_WITHOUT_TPL();
+	old_coloff = TPL_LCOL(NULL);
+
+	shell_new_columns();
     }
 }
 
@@ -7302,13 +7306,13 @@ update_tcap(int attr)
 	return;
     while (p->bt_string != NULL)
     {
-      if (p->bt_entry == (int)KS_ME)
-	  p->bt_string = &ksme_str[0];
-      else if (p->bt_entry == (int)KS_MR)
-	  p->bt_string = &ksmr_str[0];
-      else if (p->bt_entry == (int)KS_MD)
-	  p->bt_string = &ksmd_str[0];
-      ++p;
+	if (p->bt_entry == (int)KS_ME)
+	    p->bt_string = &ksme_str[0];
+	else if (p->bt_entry == (int)KS_MR)
+	    p->bt_string = &ksmr_str[0];
+	else if (p->bt_entry == (int)KS_MD)
+	    p->bt_string = &ksmd_str[0];
+	++p;
     }
 }
 
